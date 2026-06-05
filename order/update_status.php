@@ -23,7 +23,7 @@ if ($order_id <= 0 || !in_array($status, $allowed)) {
 }
 
 /*
-    Ambil data pesanan + customer + token FCM customer
+    Ambil data pesanan + customer + owner + token FCM
 */
 $orderStmt = $pdo->prepare("
     SELECT 
@@ -33,12 +33,16 @@ $orderStmt = $pdo->prepare("
         o.service_id,
         o.status,
         l.name AS laundry_name,
+        l.owner_id,
         s.service_name,
-        u.fcm_token AS customer_fcm_token
+        customer.name AS customer_name,
+        customer.fcm_token AS customer_fcm_token,
+        owner.fcm_token AS owner_fcm_token
     FROM orders o
     LEFT JOIN laundries l ON o.laundry_id = l.id
     LEFT JOIN services s ON o.service_id = s.id
-    LEFT JOIN users u ON o.customer_id = u.id
+    LEFT JOIN users customer ON o.customer_id = customer.id
+    LEFT JOIN users owner ON l.owner_id = owner.id
     WHERE o.id = ?
 ");
 $orderStmt->execute([$order_id]);
@@ -89,16 +93,51 @@ function statusLabel($status) {
 
 $laundry_name = $order["laundry_name"] ?? "Laundry";
 $service_name = $order["service_name"] ?? "Layanan Laundry";
+$customer_name = $order["customer_name"] ?? "Customer";
+
 $customer_id = intval($order["customer_id"]);
+$owner_id = intval($order["owner_id"]);
+
 $customer_fcm_token = $order["customer_fcm_token"] ?? "";
+$owner_fcm_token = $order["owner_fcm_token"] ?? "";
 
 $status_text = statusLabel($status);
 
-/*
-    Kirim FCM ke customer
-*/
 $fcm_result = null;
 
+/*
+    Jika customer membatalkan pesanan:
+    Notifikasi dikirim ke owner.
+*/
+if ($status == "cancelled") {
+    if ($owner_fcm_token != "") {
+        $fcm_result = sendFcmNotification(
+            $owner_fcm_token,
+            "Pesanan Dibatalkan",
+            "$customer_name membatalkan pesanan $service_name di $laundry_name",
+            [
+                "type" => "order_cancelled_by_customer",
+                "order_id" => $order_id,
+                "owner_id" => $owner_id,
+                "customer_id" => $customer_id,
+                "status" => $status
+            ]
+        );
+    }
+
+    res(true, "Pesanan berhasil dibatalkan", [
+        "order_id" => $order_id,
+        "owner_id" => $owner_id,
+        "customer_id" => $customer_id,
+        "status" => $status,
+        "fcm_result" => $fcm_result
+    ]);
+}
+
+/*
+    Jika owner mengubah status, termasuk rejected:
+    Notifikasi dikirim ke customer.
+*/
 if ($customer_fcm_token != "") {
     $fcm_result = sendFcmNotification(
         $customer_fcm_token,
@@ -115,6 +154,7 @@ if ($customer_fcm_token != "") {
 
 res(true, "Status berhasil diperbarui", [
     "order_id" => $order_id,
+    "owner_id" => $owner_id,
     "customer_id" => $customer_id,
     "status" => $status,
     "fcm_result" => $fcm_result
