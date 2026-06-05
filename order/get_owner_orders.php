@@ -13,7 +13,7 @@ $stmt = $pdo->prepare("
         l.name AS laundry_name,
         s.service_name,
         u.name AS customer_name,
-        u.phone AS customer_phone
+        COALESCE(NULLIF(o.customer_phone, ''), u.phone) AS customer_phone
     FROM orders o
     JOIN laundries l ON l.id = o.laundry_id
     JOIN services s ON s.id = o.service_id

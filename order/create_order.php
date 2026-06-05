@@ -8,10 +8,18 @@ $customer_id = intval($data["customer_id"] ?? 0);
 $laundry_id = intval($data["laundry_id"] ?? 0);
 $service_id = intval($data["service_id"] ?? 0);
 $weight = floatval($data["weight"] ?? 0);
+$customer_phone = trim($data["customer_phone"] ?? "");
 $pickup_address = trim($data["pickup_address"] ?? "");
 $note = trim($data["note"] ?? "");
 
-if ($customer_id <= 0 || $laundry_id <= 0 || $service_id <= 0 || $weight <= 0 || $pickup_address == "") {
+if (
+    $customer_id <= 0 || 
+    $laundry_id <= 0 || 
+    $service_id <= 0 || 
+    $weight <= 0 || 
+    $customer_phone == "" ||
+    $pickup_address == ""
+) {
     res(false, "Data pesanan belum lengkap");
 }
 
@@ -75,12 +83,13 @@ $total_price = $weight * floatval($row["price_per_kg"]);
 */
 $stmt = $pdo->prepare("
     INSERT INTO orders 
-    (customer_id, laundry_id, service_id, weight, total_price, pickup_address, note)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    (customer_id, customer_phone, laundry_id, service_id, weight, total_price, pickup_address, note)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 ");
 
 $stmt->execute([
     $customer_id,
+    $customer_phone,
     $laundry_id,
     $service_id,
     $weight,
@@ -116,6 +125,7 @@ res(true, "Pesanan berhasil dibuat", [
     "owner_id" => $owner_id,
     "laundry_id" => $laundry_id,
     "customer_id" => $customer_id,
+    "customer_phone" => $customer_phone,
     "total_price" => $total_price,
     "fcm_result" => $fcm_result
 ]);
